@@ -7,12 +7,14 @@
 
 [SBL for rigorous selection of variables]
 
-[Baselines]
+[Baselines and Contributions]
 
-[Contributions]
-
-
-## Methods
+The rest of the article is organized as follows:
+  * In **section 2** we review model discovery using sparse fitting as introduced by PDE-find and how to implement such techniques using DeepMoD. We reiterate the DeepMoD as a more general framework.
+  * **Section 3** reviews sparse bayesian learning (SBL) and how to include the Bayesian lasso.
+  * We show the efficient implementation of SBL in deepmod in **Section 4**. We include several new results about how to initialize and pick the optimal vector.
+  * In **section 5** we show the results of using SBL for model discovery. We present results on a precomputed library to show how SBL outperforms other methods and generally study the sparsity properties and also show the results when such a library is computed a la deepmod and pde find.
+  * **Section 6** reviews our results and considers possible extensions.
 
 ## Model discovery: DeepMoD and PDE-find
 
@@ -28,6 +30,7 @@
 
 ## Sparse Bayesian learning
 
+### Sparse Bayesian Learning
 
 [Review on sparse bayesian learning]
 
@@ -35,6 +38,7 @@
 ### Bayesian Lasso
 
 [How to add lasso to SBL]
+
 
 ## Including SBL in DeepMoD
 
@@ -50,6 +54,6 @@
 
 ### Dynamic library
 
-[Using deepmod to dynamically calculate the library]
+[Using deepmod to dynamically calculate the library and pde find]
 
 ## Discussion
