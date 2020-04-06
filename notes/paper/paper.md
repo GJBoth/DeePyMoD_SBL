@@ -8,11 +8,10 @@
 [SBL for rigorous selection of variables]
 
 
-
 In the sparse regression framework, model discovery can be separated into two mostly separate tasks: constructing the function library $\Theta$ and finding the sparse coefficient vector corresponding to problem xxx. Following this separation, we first compare the sparsity of four different algorithms on a known, precomputed library, corrupted by a set level of white noise. These algorithms are:
-  1. Lasso, a classic sparsity promoting algorithm.
+  1. Lasso + thresholding, a classic sparsity promoting algorithm.
   2. Sparse bayesian learning as introduced by tipping et al.
-  3. A noise-robust version of SBL using Bayesian lasso, introduced by xxx.
+  3. A noise-robust version of SBL using Bayesian lasso, introduced by Helgoy.
   4. STridge, the sparsity algorithm introduced by Kutz et al.
 
 We then turn to the full task of model discovery, in which the library is computed from noisy observations. We consider two different approaches of computing the library, static and dynamic. In the static case, the library is computed from observations and a sparsity pattern is extracted from this library, PDE-find style. In the dynamic case, the a representation of the data is made from which the library is computed and constrained as the optimization takes place, deepmod style. We thus compare the following six cases.
@@ -52,13 +51,24 @@ The rest of the article is organized as follows:
 
 [Review on DeepMod]
 
-
-
 ## Sparse Bayesian learning
 
-### Sparse Bayesian Learning
+We define our hierarchical Bayesian model as follows,
+$$
+p(\mathbf{y}\mid \mathbf{w}, \beta) = \mathcal{N}(\mathbf{w} \mid \mathbf{\Phi}\mathbf{w}, \beta^{-1})
+$$
 
-[Review on sparse bayesian learning]
+$$
+p(\mathbf{w} \mid \gamma, \beta) = \prod_{i=0}^{N}\mathcal{N}(w_i \mid 0, \gamma_i\beta^{-1})
+$$
+
+with an inverse gamma prior on $\beta$:
+
+$$
+p(\beta) = \frac{b^{a}}{\Gamma(a)}({\beta})^{a-1}e^{-b\beta} \quad (a >0, b >0)
+$$
+
+
 
 
 ### Bayesian Lasso
