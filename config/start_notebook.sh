@@ -1,6 +1,6 @@
 #!/bin/bash
 
-container_name="deepymod_pytorch"
+container_name="deepymod_sbl"
 image="phimal/projects:general"
 
 #First automatically find project directory

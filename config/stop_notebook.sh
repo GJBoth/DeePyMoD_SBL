@@ -1,1 +1,1 @@
-docker stop deepymod_pytorch
+docker stop deepymod_sbl
