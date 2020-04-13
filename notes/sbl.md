@@ -31,7 +31,7 @@ We can obtain the conditional prior distribution by integrating out the hyperpar
 $$
 p(\mathbf{w} \mid \beta) = \prod_{i=0}^{N}\frac{\sqrt{\beta\lambda}}{2}e^{-\sqrt{\beta\lambda}|w_i|}
 $$
-which is the conditional prior corresponding to the Bayesian Lasso. 
+which is the conditional prior corresponding to the Bayesian Lasso.
 
 ### Posterior
 
@@ -71,7 +71,7 @@ with the covariance $C$ defined as
 $$
 C = \beta^{-1}\mathbf{I}_N + \mathbf{\Phi}\mathbf{\Lambda}\mathbf{\Phi}^T = \beta^{-1}(\mathbf{I}_N + \mathbf{\Phi}\text{diag}(\mathbf{\gamma})\mathbf{\Phi}^T) = \beta^{-1}\hat{C}
 $$
-Working with probabilities leads to small numbers, so it's numerically easier to optimise over the logarithm of the evidence, 
+Working with probabilities leads to small numbers, so it's numerically easier to optimise over the logarithm of the evidence,
 $$
 \mathcal{L} = -\frac{1}{2}\log|\mathbf{C}| - \frac{1}{2}\mathbf{y}^T\mathbf{C}^{-1}\mathbf{y}\\
 + N \log \frac{\lambda}{2} - \frac{\lambda}{2}\sum_i\gamma_i\\
@@ -91,7 +91,7 @@ $$
 
 ## Optimalisation
 
-We follow Tipsen for the fast optimisation of the likelihood. The basic idea is to split optimise every hyperparameter $\gamma_i$ *separately*, which allows for closed for solutions. Iteratively updating all the hyper parameters converges on the true solution. The advantage of the closed solutions is that it allows us to determine analytically whether a term should stay in the model or not. 
+We follow Tipsen for the fast optimisation of the likelihood. The basic idea is to split optimise every hyperparameter $\gamma_i$ *separately*, which allows for closed for solutions. Iteratively updating all the hyper parameters converges on the true solution. The advantage of the closed solutions is that it allows us to determine analytically whether a term should stay in the model or not.
 
 To optimise every $\gamma_i$ separately, we need to decompose the loss function in a part belonging to $\gamma_i$ and $\gamma_{-i}$, where $-i$ denotes all components except $i$. Considering the loss function above, we start by writing $\hat{\mathbf{C}}$ as
 $$
@@ -116,11 +116,11 @@ $$
 = \mathcal{L}(\gamma_{-i}) + \mathcal{L}(\gamma_{i})
 $$
 
-To make this more understandable, we introduce [TO DO, DEFINE HAT{S} and HAT{Q}] 
+To make this more understandable, we introduce [TO DO, DEFINE HAT{S} and HAT{Q}]
 $$
 s_i = \phi_i^T\hat{\mathbf{C}}^{-1}_{-i}\phi_i \quad \text{and} \quad q_i =\phi_i^T\hat{\mathbf{C}}^{-1}_{-i}\mathbf{y}
 $$
-where $s_i$ is a sparsity factor and $q_i$ is a quality factor [TO DO: EXPAND ON EXPLANATION WHY]. With these definitions, we rewrite $\mathcal{L}(\gamma_i)$ as 
+where $s_i$ is a sparsity factor and $q_i$ is a quality factor [TO DO: EXPAND ON EXPLANATION WHY]. With these definitions, we rewrite $\mathcal{L}(\gamma_i)$ as
 $$
 \mathcal{L}(\gamma_i) = \log(1+\gamma_is_i) - \frac{\beta\gamma_iq_i^2}{1 + \gamma_is_i} + \lambda\gamma_i
 $$
@@ -139,13 +139,13 @@ $$
 $$
 In this form it's easier to analyze. Note that for $\beta q_i^2 - s_i < \lambda$, both solutions are negative.  We require  that $\gamma_i > 0$, and the derivative at $\gamma_i = 0$ is smaller than zero, so for this case the minimum is $\gamma_i = 0$. For $\beta q_i^2 - s_i > \lambda$, we can shorten the previous equation so that we finally obtain
 $$
-\gamma_i = 
+\gamma_i =
 \begin{cases}
 	\frac{-2\lambda - s_i + \sqrt{4\beta\lambda q_i^2+s_i^2}}{2\lambda s_i}, & \text{if } \beta q_i^2 - s_i > \lambda \\
 	0, & \text{if } \beta q_i^2 - s_i \leq \lambda
 \end{cases}
 $$
-It's also more convenient to define 
+It's also more convenient to define
 $$
 \hat{S}_i = \phi_i^T\hat{\mathbf{C}}^{-1}\phi_i, \quad \hat{Q}_i = \phi_i^T\hat{\mathbf{C}}^{-1}\mathbf{y}
 $$
@@ -178,15 +178,15 @@ where $\psi$ is the digamma function. This problem is solved by $\nu =0, \delta 
 $$
 \lambda = \frac{2(N-1)}{\sum_i \gamma_i}.
 $$
-Note that this is different from Helgoy et al, who update $\delta$ and $\nu$. However, Babacaun have performed a comparison between $\nu=0$ and $\nu$ and $\delta$ automatically set, but at the same value and observed slightly better performance. In effect, we're applying a non-informative prior on $\lambda$. 
+Note that this is different from Helgoy et al, who update $\delta$ and $\nu$. However, Babacaun have performed a comparison between $\nu=0$ and $\nu$ and $\delta$ automatically set, but at the same value and observed slightly better performance. In effect, we're applying a non-informative prior on $\lambda$.
 
 ## Noise update
 
-Rather than following Babaucan, we do wish to update the noise. Starting from the log-likelihood, it's derivative w.r.t $\beta$ is 
+Rather than following Babaucan, we do wish to update the noise. Starting from the log-likelihood, it's derivative w.r.t $\beta$ is
 $$
 \frac{\partial \mathcal{L}}{\partial \beta} = \frac{N}{2\beta} - \frac{1}{2}\mathbf{y}^T\hat{\mathbf{C}}^{-1}\mathbf{y}
 $$
-Solving for $\beta$ gives 
+Solving for $\beta$ gives
 $$
 \beta = \frac{N}{\mathbf{y}^T\hat{\mathbf{C}}^{-1}\mathbf{y}}
 $$
@@ -208,18 +208,18 @@ Tipping recommends the starting vector to be the one with largest normalized pro
 $$
 \frac{||\phi_i^T\mathbf{y}||^2}{||\phi_i||^2}.
 $$
-This vector maximizes the largest initial likelihood as well [TO DO: CHECK]. In the following two sections we calculate what $\gamma_i$ would be in case of $\lambda=0$ initially or develop a method to self-consistently determine $\lambda$ and $\gamma_i$. Addiotionaly, if we normalize $\Theta$ the have norm-1 columns, $||\phi_i||=1$, so that the vector initial vector is found by 
+This vector maximizes the largest initial likelihood as well [TO DO: CHECK]. In the following two sections we calculate what $\gamma_i$ would be in case of $\lambda=0$ initially or develop a method to self-consistently determine $\lambda$ and $\gamma_i$. Addiotionaly, if we normalize $\Theta$ the have norm-1 columns, $||\phi_i||=1$, so that the vector initial vector is found by
 $$
 ||\phi_i^T\mathbf{y}||^2.
 $$
 
-### Using $\lambda =0 $
+### Using $\lambda=0$
 
-The limit $\lim_{\lambda \to 0}\gamma_i$ doesn't converge due to a $\lambda^{-1}$ term. Nonetheless, by solving $\lim_{\lambda\to0}\partial\mathcal{L}/\partial\gamma_i$ we obtain 
+The limit $\lim_{\lambda \to 0}\gamma_i$ doesn't converge due to a $\lambda^{-1}$ term. Nonetheless, by solving $\lim_{\lambda\to0}\partial\mathcal{L}/\partial\gamma_i$ we obtain
 $$
 \gamma_i = \frac{\beta \hat{q}_i^2-\hat{s}_i}{\hat{s}_i^2}
 $$
-which is similar to Tippings result. Note that for the initial vector, all $\gamma_{-i}$ are 0 so that $\hat{\mathbf{C}}^{-1}_{-i} = \mathbf{I}_N$. Consequently, we see that 
+which is similar to Tippings result. Note that for the initial vector, all $\gamma_{-i}$ are 0 so that $\hat{\mathbf{C}}^{-1}_{-i} = \mathbf{I}_N$. Consequently, we see that
 $$
 \hat{s}_i = \phi_i^T\phi_i, \quad \hat{q}_i = \phi_i^T\mathbf{y}.
 $$
@@ -251,4 +251,4 @@ $$
 
 
 
-## 
+##

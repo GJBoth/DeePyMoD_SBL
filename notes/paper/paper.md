@@ -53,6 +53,9 @@ The rest of the article is organized as follows:
 
 ## Sparse Bayesian learning
 
+Sparse Bayesian learning was introduced by Tipping et al in his 2003 article xxx, mainly as a method to speed up SVM calculations. We shortly reiterate it here as 
+
+
 We define our hierarchical Bayesian model as follows,
 $$
 p(\mathbf{y}\mid \mathbf{w}, \beta) = \mathcal{N}(\mathbf{w} \mid \mathbf{\Phi}\mathbf{w}, \beta^{-1})

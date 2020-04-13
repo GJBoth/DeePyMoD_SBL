@@ -2,10 +2,6 @@ import numpy as np
 
 
 def SBL(theta, t):
-    # Normalizing
-    #normalization = np.linalg.norm(theta, axis=0)
-    #theta_normalized = theta / normalization
-
     # Initializing
     Phi, alfa, beta = initialize(theta, t)
     Sigma, mu = posterior(Phi, t, alfa, beta)
@@ -14,16 +10,11 @@ def SBL(theta, t):
     # Running
     converged = False
     while converged is False:
-        Phi, alfa = update_design_matrix(theta_normalized, sm, qm, alfa, Sm, Qm)
+        Phi, alfa = update_design_matrix(theta, sm, qm, alfa, Sm, Qm)
         Sigma, mu = posterior(Phi, t, alfa, beta)
-        sm, qm, Sm, Qm = sparse_quality_factor(theta_normalized, t, Phi, Sigma, alfa, beta)
+        sm, qm, Sm, Qm = sparse_quality_factor(theta, t, Phi, Sigma, alfa, beta)
         beta = update_noise(Phi, t, mu, Sigma, alfa)
         converged = convergence(sm, qm, alfa)
-
-    # Rescaling
-    factor = normalization[alfa[:, 0] != np.inf][:, None]
-    mu = mu / factor
-    Sigma = Sigma / (factor @ factor.T)
 
     return alfa, mu, Sigma, 1/beta
 
