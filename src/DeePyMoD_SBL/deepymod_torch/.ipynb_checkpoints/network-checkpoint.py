@@ -20,12 +20,17 @@ class Fitting(nn.Module):
         self.sparsity_mask = [torch.arange(n_terms) for _ in torch.arange(n_out)]
 
     def forward(self, input):
-        sparse_theta = self.apply_mask(input)
-        return sparse_theta, self.coeff_vector
+        thetas, time_derivs = input
+        sparse_thetas = self.apply_mask(thetas)
+        self.coeff_vector = self.fit_coefficient(sparse_thetas, time_derivs)
+        return sparse_thetas, self.coeff_vector
 
     def apply_mask(self, theta):
         sparse_theta = [theta[:, sparsity_mask] for sparsity_mask in self.sparsity_mask]
         return sparse_theta
+    
+    def fit_coefficient(self, thetas, time_derivs):
+        return self.coeff_vector
 
     
 class FittingDynamic(nn.Module):

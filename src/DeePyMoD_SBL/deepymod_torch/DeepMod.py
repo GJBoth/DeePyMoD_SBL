@@ -46,11 +46,11 @@ class DeepMod(nn.Module):
 
 class DeepModDynamic(nn.Module):
     ''' Class based interface for deepmod.'''
-    def __init__(self, n_in, hidden_dims, n_out, library_function, library_args):
+    def __init__(self, n_in, hidden_dims, n_out, library_function, library_args, fit_method='optim'):
         super().__init__()
         self.network = self.build_network(n_in, hidden_dims, n_out)
         self.library = Library(library_function, library_args)
-        self.fit = self.build_fit_layer(n_in, n_out, library_function, library_args)
+        self.fit = self.build_fit_layer(fit_method, n_in, n_out, library_function, library_args)
 
     def forward(self, input):
         prediction = self.network(input)
@@ -70,10 +70,16 @@ class DeepModDynamic(nn.Module):
 
         return network
 
-    def build_fit_layer(self, n_in, n_out, library_function, library_args):
+    def build_fit_layer(self, method, n_in, n_out, library_function, library_args):
         sample_input = torch.ones((1, n_in), dtype=torch.float32, requires_grad=True)
         n_terms = self.library((self.network(sample_input), sample_input))[1].shape[1] # do sample pass to infer shapes
-        fit_layer = FittingDynamic(n_terms, n_out)
+        
+        if method == 'lstsq':
+            fit_layer = FittingDynamic(n_terms, n_out)
+        elif method == 'optim':
+            fit_layer = Fitting(n_terms, n_out)
+        else:
+            print('Fitting method not defined.')
 
         return fit_layer
 
