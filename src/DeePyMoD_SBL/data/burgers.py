@@ -4,7 +4,9 @@ from scipy.special import erfc
 class Burgers:
     ''' Class to generate analytical solutions of Burgers equation with delta peak initial condition. 
     
-    Good source: https://www.iist.ac.in/sites/default/files/people/IN08026/Burgers_equation_viscous.pdf'''
+    Good source: https://www.iist.ac.in/sites/default/files/people/IN08026/Burgers_equation_viscous.pdf
+    Note theres an error in the derivation, the term in front of the erfc
+    needs to be sqrt(pi)/2, not sqrt(pi/2)'''
     
     def __init__(self, viscosity, A):
         self.v = viscosity
@@ -37,7 +39,7 @@ class Burgers:
         R = A/(2*v)
         z = x/np.sqrt(4*v*t)
         
-        solution = np.sqrt(v/t) * ((np.exp(R) - 1) * np.exp(-z**2)) / (np.sqrt(np.pi) + (np.exp(R) - 1)*np.sqrt(np.pi/2)*erfc(z))
+        solution = np.sqrt(v/(np.pi*t)) * ((np.exp(R) - 1) * np.exp(-z**2)) / (1 + (np.exp(R) - 1)/2*erfc(z))
         return solution
     
     @staticmethod
@@ -47,7 +49,7 @@ class Burgers:
         z = x/np.sqrt(4*v*t)
         
         u = Burgers.u(x, t, v, A)
-        u_x = 1/np.sqrt(4*v*t) * (np.sqrt(2*t/v)*u**2-2*z*u)
+        u_x = 1/np.sqrt(4*v*t) * (np.sqrt(t/v)*u**2-2*z*u)
         return u_x
     
     @staticmethod
@@ -58,7 +60,7 @@ class Burgers:
         
         u = Burgers.u(x, t, v, A)
         u_x = Burgers.u_x(x, t, v, A)
-        u_xx = 1/np.sqrt(4*v*t) * (-2*u/np.sqrt(4*v*t) - 2*z*u_x + 2*np.sqrt(2*t/v)*u*u_x) # could be written shorter, but then get NaNs due to inversions
+        u_xx = 1/np.sqrt(4*v*t) * (-2*u/np.sqrt(4*v*t) - 2*z*u_x + 2*np.sqrt(t/v)*u*u_x) # could be written shorter, but then get NaNs due to inversions
         return u_xx
     
     @staticmethod
@@ -70,7 +72,7 @@ class Burgers:
         u = Burgers.u(x, t, v, A)
         u_x = Burgers.u_x(x, t, v, A)
         u_xx = Burgers.u_xx(x, t, v, A)
-        u_xxx = 1/np.sqrt(4*v*t) * (-4/np.sqrt(4*v*t) * u_x + 2 *np.sqrt(2*t/v)*u_x**2 + u_xx*(-2*z+2*np.sqrt(2*t/v)*u)) # could be written shorter, but then get NaNs due to inversions
+        u_xxx = 1/np.sqrt(4*v*t) * (-4/np.sqrt(4*v*t) * u_x + 2 *np.sqrt(t/v)*u_x**2 + u_xx*(-2*z+2*np.sqrt(t/v)*u)) # could be written shorter, but then get NaNs due to inversions
         return u_xxx
     
     @staticmethod
@@ -82,5 +84,5 @@ class Burgers:
         u = Burgers.u(x, t, v, A)
         u_x = Burgers.u_x(x, t, v, A)
         u_xx = Burgers.u_xx(x, t, v, A)
-        u_t = v * u_xx - u *u_x
+        u_t = v * u_xx - u * u_x
         return u_t
