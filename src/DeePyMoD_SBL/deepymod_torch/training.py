@@ -15,7 +15,7 @@ def train(model, data, target, optimizer, max_iterations, loss_func_args={'l1':1
     print('| Iteration | Progress | Time remaining |     Cost |      MSE |      Reg |       L1 |')
     for iteration in torch.arange(0, max_iterations + 1):
         # Calculating prediction and library and scaling
-        prediction, time_deriv_list, sparse_theta_list, coeff_vector_list = model(data)
+        prediction, time_deriv_list, sparse_theta_list, coeff_vector_list, theta = model(data)
         coeff_vector_scaled_list = scaling(coeff_vector_list, sparse_theta_list, time_deriv_list) 
         
         # Calculating loss
@@ -45,7 +45,7 @@ def train_mse(model, data, target, optimizer, max_iterations, loss_func_args={})
     print('| Iteration | Progress | Time remaining |     Cost |      MSE |      Reg |       L1 |')
     for iteration in torch.arange(0, max_iterations + 1):
         # Calculating prediction and library and scaling
-        prediction, time_deriv_list, sparse_theta_list, coeff_vector_list = model(data)
+        prediction, time_deriv_list, sparse_theta_list, coeff_vector_list, theta = model(data)
         coeff_vector_scaled_list = scaling(coeff_vector_list, sparse_theta_list, time_deriv_list) 
 
         # Calculating loss
@@ -67,7 +67,7 @@ def train_deepmod(model, data, target, optimizer, max_iterations, loss_func_args
     '''Performs full deepmod cycle: trains model, thresholds and trains again for unbiased estimate. Updates model in-place.'''
     # Train first cycle and get prediction
     train(model, data, target, optimizer, max_iterations, loss_func_args)
-    prediction, time_deriv_list, sparse_theta_list, coeff_vector_list = model(data)
+    prediction, time_deriv_list, sparse_theta_list, coeff_vector_list, theta = model(data)
 
     # Threshold, set sparsity mask and coeff vector
     sparse_coeff_vector_list, sparsity_mask_list = threshold(coeff_vector_list, sparse_theta_list, time_deriv_list)
@@ -82,4 +82,41 @@ def train_deepmod(model, data, target, optimizer, max_iterations, loss_func_args
     optimizer.param_groups[0]['params'] = model.parameters()
     print() #empty line for correct printing
     train(model, data, target, optimizer, max_iterations, dict(loss_func_args, **{'l1': 0.0}))
+    
+
+def train_dynamic(model, data, target, optimizer, max_iterations, loss_func_args={'sparsity_update_period': 200, 'start_sparsity_update': 5000}):
+    '''Trains the deepmod model with MSE, regression and l1 cost function. Updates model in-place.'''
+    start_time = time.time()
+    number_of_terms = [coeff_vec.shape[0] for coeff_vec in model(data)[3]]
+    board = Tensorboard(number_of_terms)
+
+    # Training
+    print('| Iteration | Progress | Time remaining |     Cost |      MSE |      Reg |       L1 |')
+    for iteration in torch.arange(0, max_iterations + 1):
+        # Calculating prediction and library and scaling
+        prediction, time_deriv_list, sparse_theta_list, coeff_vector_list, theta = model(data)
+        coeff_vector_scaled_list = scaling(coeff_vector_list, sparse_theta_list, time_deriv_list) 
+        
+        # Calculating loss
+        loss_reg = reg_loss(time_deriv_list, sparse_theta_list, coeff_vector_list)
+        loss_mse = mse_loss(prediction, target)
+        loss = torch.sum(loss_reg) + torch.sum(loss_mse)
+        
+        # Writing
+        if iteration % 100 == 0:
+            progress(iteration, start_time, max_iterations, loss.item(), torch.sum(loss_mse).item(), torch.sum(loss_reg).item(), 0.0)
+            board.write(iteration, loss, loss_mse, loss_reg, loss_reg, coeff_vector_list, coeff_vector_scaled_list)
+
+        # Optimizer step
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        
+        # Updating sparsity pattern
+        if (iteration >= loss_func_args['start_sparsity_update']) and (iteration % loss_func_args['sparsity_update_period'] == 0):
+            with torch.no_grad():
+                model.constraints.sparsity_mask = model.calculate_sparsity_mask(theta, time_deriv_list)
+                
+    board.close()
+
 

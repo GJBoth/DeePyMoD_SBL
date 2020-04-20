@@ -18,11 +18,10 @@ def scaling(coeff_vector_list, sparse_theta_list, time_deriv_list):
 
 def threshold_single(coeff_vector_scaled, coeff_vector):
     '''Removes coefficient if |value| < std(coefficient_vec) and returns new coefficient vector and sparsity mask. '''
-    sparse_coeff_vector = torch.where(torch.abs(coeff_vector_scaled) > torch.std(coeff_vector_scaled, dim=0), coeff_vector, torch.zeros_like(coeff_vector_scaled))
-    sparsity_mask = torch.nonzero(sparse_coeff_vector)[:, 0].detach()  # detach it so it doesn't get optimized and throws an error
-    sparse_coeff_vector = torch.nn.Parameter(sparse_coeff_vector[sparsity_mask].clone().detach())
+    sparsity_mask = (torch.abs(coeff_vector_scaled) > torch.std(coeff_vector_scaled)).detach() # detach it so it doesn't get optimized and throws an error
+    sparse_coeff_vector = torch.nn.Parameter(coeff_vector[sparsity_mask].clone().detach())
 
-    return sparse_coeff_vector, sparsity_mask
+    return sparse_coeff_vector, sparsity_mask.squeeze()
     
 def threshold(coeff_vector_list, sparse_theta_list, time_deriv_list):
     '''Wrapper around threshold_single to threshold list of vectors. Also performs scaling.'''

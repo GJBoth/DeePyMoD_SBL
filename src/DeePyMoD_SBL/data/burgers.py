@@ -32,17 +32,7 @@ class Burgers:
         ''' Return time derivative'''
         u_t = self.u_t(x, t, self.v, self.A)
         return u_t
-
-
-
-
-
-
-
-class BurgersDelta:
-    ''' Class to generate analytical solutions of Burgers equation with delta peak initial condition.
-
-    Good source: https://www.iist.ac.in/sites/default/files/people/IN08026/Burgers_equation_viscous.pdf'''
+    
     @staticmethod
     def u(x, t, v, A):
         '''Calculates solution.'''
@@ -93,33 +83,3 @@ class BurgersDelta:
         u_xx = Burgers.u_xx(x, t, v, A)
         u_t = v * u_xx - u * u_x
         return u_t
-
-class BurgersSawtooth:
-        ''' Class to generate analytical solutions of Burgers equation with sawtooth initial condition.
-
-        Source: http://www.thevisualroom.com/02_barba_projects/burgers_equation.html'''
-
-        def __init__(self, viscosity, A):
-            self.v = viscosity
-            self.A = A
-
-        def solution(self, x, t):
-            '''Generation solution.'''
-            return self.u(x, t, self.v, self.A)
-
-        def library(self, x, t):
-            ''' Returns library with 3rd order derivs and 2nd order polynomial'''
-            u = self.u(x, t, self.v, self.A)
-            u_x = self.u_x(x, t, self.v, self.A)
-            u_xx = self.u_xx(x, t, self.v, self.A)
-            u_xxx = self.u_xxx(x, t, self.v, self.A)
-
-            derivs = np.concatenate([np.ones_like(u), u_x, u_xx, u_xxx], axis=1)
-            theta = np.concatenate([derivs, u * derivs, u**2 * derivs], axis=1)
-
-            return theta
-
-        def time_deriv(self, x, t):
-            ''' Return time derivative'''
-            u_t = self.u_t(x, t, self.v, self.A)
-            return u_t

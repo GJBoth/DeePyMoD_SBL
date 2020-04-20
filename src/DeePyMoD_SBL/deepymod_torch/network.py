@@ -17,7 +17,7 @@ class Fitting(nn.Module):
     def __init__(self, n_terms, n_out):
         super().__init__()
         self.coeff_vector = nn.ParameterList([torch.nn.Parameter(torch.rand((n_terms, 1), dtype=torch.float32)) for _ in torch.arange(n_out)])
-        self.sparsity_mask = [torch.arange(n_terms) for _ in torch.arange(n_out)]
+        self.sparsity_mask = [torch.ones(n_terms, dtype=torch.bool) for _ in torch.arange(n_out)]
 
     def forward(self, input):
         thetas, time_derivs = input
@@ -37,7 +37,7 @@ class FittingDynamic(nn.Module):
     def __init__(self, n_terms, n_out):
         super().__init__()
         self.coeff_vector = [torch.rand((n_terms, 1), dtype=torch.float32) for _ in torch.arange(n_out)] # initialize randomly cause otherwise tensorboard will complain
-        self.sparsity_mask = [torch.arange(n_terms) for _ in torch.arange(n_out)]
+        self.sparsity_mask = [torch.ones(n_terms, dtype=torch.bool) for _ in torch.arange(n_out)]
 
     def forward(self, input):
         thetas, time_derivs = input
