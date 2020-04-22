@@ -105,7 +105,11 @@ def train_dynamic(model, data, target, optimizer, max_iterations, loss_func_args
         # Writing
         if iteration % 100 == 0:
             progress(iteration, start_time, max_iterations, loss.item(), torch.sum(loss_mse).item(), torch.sum(loss_reg).item(), 0.0)
-            board.write(iteration, loss, loss_mse, loss_reg, loss_reg, coeff_vector_list, coeff_vector_scaled_list)
+            # Before writing to tensorboard, we need to fill the missing values with 0
+            coeff_vectors_padded = [torch.zeros(mask.size()).masked_scatter_(mask, coeff_vector.squeeze()) for mask, coeff_vector in zip(model.constraints.sparsity_mask, coeff_vector_list)]
+            scaled_coeff_vectors_padded = [torch.zeros(mask.size()).masked_scatter_(mask, coeff_vector.squeeze()) for mask, coeff_vector in zip(model.constraints.sparsity_mask, coeff_vector_scaled_list)]
+            
+            board.write(iteration, loss, loss_mse, loss_reg, loss_reg, coeff_vectors_padded, scaled_coeff_vectors_padded)
 
         # Optimizer step
         optimizer.zero_grad()
