@@ -14,8 +14,8 @@ class DeepMod(nn.Module):
     def forward(self, input):
         prediction = self.network(input)
         time_deriv, theta = self.library((prediction, input))
-        sparse_theta, coeff_vector = self.fit(theta)
-        return prediction, time_deriv, sparse_theta, coeff_vector
+        sparse_theta, coeff_vector = self.fit((theta, time_deriv))
+        return prediction, time_deriv, sparse_theta, coeff_vector, theta
 
     def build_network(self, n_in, hidden_dims, n_out):
         # NN
