@@ -9,8 +9,8 @@ class Tensorboard():
         self.writer = SummaryWriter()
         self.writer.add_custom_scalars(custom_board(number_of_terms))
 
-    def write(self, iteration, loss, loss_mse, loss_reg, loss_l1, coeff_vector_list, coeff_vector_scaled_list):
-        # Logs losses, costs and coeff vectors.
+    def write(self, iteration, loss, loss_mse, loss_reg, loss_l1, coeff_vector_list, coeff_vector_scaled_list, **kwargs):
+        # Stuff for custom board.
         self.writer.add_scalar('Total loss', loss, iteration)
         for idx in range(len(loss_mse)):
             self.writer.add_scalar('MSE '+str(idx), loss_mse[idx], iteration)
@@ -20,7 +20,17 @@ class Tensorboard():
                 self.writer.add_scalar('coeff ' + str(idx) + ' ' + str(element_idx), element, iteration)
             for element_idx, element in enumerate(torch.unbind(coeff_vector_scaled_list[idx])):
                 self.writer.add_scalar('scaled_coeff ' + str(idx) + ' ' + str(element_idx), element, iteration)
-
+                
+        # Writing remaining kwargs
+        for key, value in kwargs.items():
+            assert len(value.squeeze().shape) <= 1, 'writing matrices is not supported.'
+            if len(value.squeeze().shape) == 0: #if scalar
+                self.writer.add_scalar(key, value, iteration)
+            else: #else its a vector and we have to unbind
+                for element_idx, element in enumerate(torch.unbind(value)):
+                    self.writer.add_scalar(key + f'_{element_idx}', element, iteration)
+            
+        
     def close(self):
         self.writer.close()
 

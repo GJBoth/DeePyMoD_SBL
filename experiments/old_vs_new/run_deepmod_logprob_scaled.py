@@ -5,8 +5,7 @@ import torch
 from phimal_utilities.data import Dataset
 from phimal_utilities.data.burgers import BurgersDelta
 from DeePyMoD_SBL.deepymod_torch.library_functions import library_1D_in
-from DeePyMoD_SBL.deepymod_torch.DeepMod import DeepModDynamic
-from sklearn.linear_model import LassoLarsIC
+from DeePyMoD_SBL.deepymod_torch.DeepMod import DeepMod
 
 import time
 from DeePyMoD_SBL.deepymod_torch.output import Tensorboard, progress
@@ -32,6 +31,8 @@ def train(model, data, target, optimizer, max_iterations, loss_func_args):
         # Calculating loss
         loss_mse = mse_loss(prediction, target)
         loss_reg = reg_loss(time_deriv_list, sparse_theta_list, coeff_vector_list)
+        loss_l1 = l1_loss(coeff_vector_scaled_list, loss_func_args['l1'])
+        
         loss = torch.sum(1 + 2 * torch.log(2 * pi * loss_mse) + loss_reg / loss_mse) 
         
         # Writing
@@ -46,7 +47,7 @@ def train(model, data, target, optimizer, max_iterations, loss_func_args):
             mae_dt = torch.mean(torch.abs(dt_true - time_deriv_list[0]), dim=0)
             
             # Write to tensorboard
-            board.write(iteration, loss, loss_mse, loss_reg, loss_reg, coeff_vector_list, coeff_vector_scaled_list, mae_library=mae_library, mae_time_deriv=mae_dt)
+            board.write(iteration, loss, loss_mse, loss_reg, loss_l1, coeff_vector_list, coeff_vector_scaled_list, mae_library=mae_library, mae_time_deriv=mae_dt)
 
         # Optimizer step
         optimizer.zero_grad()
@@ -75,14 +76,14 @@ x_grid, t_grid = np.meshgrid(x, t, indexing='ij')
 dataset = Dataset(BurgersDelta, v=v, A=A)
 X_train, y_train = dataset.create_dataset(x_grid.reshape(-1, 1), t_grid.reshape(-1, 1), n_samples=0, noise=0.1, random=False)
 
-theta = dataset.library(x_grid.reshape(-1, 1), t_grid.reshape(-1, 1), poly_order=2, deriv_order=2)
+theta = dataset.library(x_grid.reshape(-1, 1), t_grid.reshape(-1, 1), poly_order=2, deriv_order=3)
 dt = dataset.time_deriv(x_grid.reshape(-1, 1), t_grid.reshape(-1, 1))
 
 # Running deepmod
-config = {'n_in': 2, 'hidden_dims': [30, 30, 30, 30, 30], 'n_out': 1, 'library_function':library_1D_in, 'library_args':{'poly_order':2, 'diff_order': 2}, 'sparsity_estimator': LassoLarsIC(fit_intercept=False)}
-model = DeepModDynamic(**config)
+config = {'n_in': 2, 'hidden_dims': [30, 30, 30, 30, 30], 'n_out': 1, 'library_function':library_1D_in, 'library_args':{'poly_order':2, 'diff_order': 3}}
+model = DeepMod(**config)
 
-optimizer = torch.optim.Adam(model.network_parameters(), betas=(0.99, 0.999), amsgrad=True)
-train(model, X_train, y_train, optimizer, 20000, loss_func_args={'library':torch.tensor(theta) ,'time_deriv': torch.tensor(dt)})
+optimizer = torch.optim.Adam(model.parameters(), betas=(0.99, 0.999), amsgrad=True)
+train(model, X_train, y_train, optimizer, 100000, loss_func_args={'library':torch.tensor(theta) ,'time_deriv': torch.tensor(dt), 'l1': 0.0})
 
-torch.save(model.state_dict(), 'data/deepmod_lstsq_logprob.pt')
+torch.save(model.state_dict(), 'data/deepmod.pt')
