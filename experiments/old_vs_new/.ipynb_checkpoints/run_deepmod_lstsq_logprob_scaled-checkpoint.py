@@ -32,7 +32,7 @@ def train(model, data, target, optimizer, max_iterations, loss_func_args):
         # Calculating loss
         loss_mse = mse_loss(prediction, target)
         loss_reg = reg_loss(time_deriv_list, sparse_theta_list, coeff_vector_list)
-        loss = torch.sum(1 + 2 * torch.log(2 * pi * loss_mse) + loss_reg / loss_mse) 
+        loss = torch.sum(2 * torch.log(2 * pi * loss_mse) + loss_reg / loss_mse) 
         
         # Writing
         if iteration % 100 == 0:
