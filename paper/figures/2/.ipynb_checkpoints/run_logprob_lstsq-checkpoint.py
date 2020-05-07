@@ -16,10 +16,10 @@ from numpy import pi
 
 
 # Defining training function
-def train(model, data, target, optimizer, max_iterations, loss_func_args):
+def train(model, data, target, optimizer, max_iterations, loss_func_args, log_dir=None):
     start_time = time.time()
     number_of_terms = [coeff_vec.shape[0] for coeff_vec in model(data)[3]]
-    board = Tensorboard(number_of_terms)
+    board = Tensorboard(number_of_terms, log_dir)
     
     # Training
     print('| Iteration | Progress | Time remaining |     Cost |      MSE |      Reg |       LL |')
@@ -68,24 +68,23 @@ v = 0.1
 A = 1.0
 
 # Making grid
-x = np.linspace(-3, 4, 40)
-t = np.linspace(0.5, 5.0, 25)
+x = np.linspace(-3, 4, 100)
+t = np.linspace(0.5, 5.0, 50)
 x_grid, t_grid = np.meshgrid(x, t, indexing='ij')
 
 # Making data
-dataset = Dataset(BurgersDelta, v=v, A=A)
-X_train, y_train = dataset.create_dataset(x_grid.reshape(-1, 1), t_grid.reshape(-1, 1), n_samples=0, noise=0.1, random=False)
-
-theta = dataset.library(x_grid.reshape(-1, 1), t_grid.reshape(-1, 1), poly_order=2, deriv_order=3)
-dt = dataset.time_deriv(x_grid.reshape(-1, 1), t_grid.reshape(-1, 1))
-
-# Running deepmod
 estimator = LassoLarsIC(fit_intercept=False)
-
+dataset = Dataset(BurgersDelta, v=v, A=A)
 config = {'n_in': 2, 'hidden_dims': [30, 30, 30, 30, 30], 'n_out': 1, 'library_function':library_1D_in, 'library_args':{'poly_order':2, 'diff_order': 3}, 'sparsity_estimator': estimator}
-model = DeepModDynamic(**config)
+n_runs = 5
 
-optimizer = torch.optim.Adam(model.parameters(), betas=(0.99, 0.999), amsgrad=True)
-train(model, X_train, y_train, optimizer, 20000, loss_func_args={'library':torch.tensor(theta) ,'time_deriv': torch.tensor(dt)})
-
-torch.save(model.state_dict(), 'data/deepmod_logprob_lstsq.pt')
+for run_idx in np.arange(n_runs):
+    X_train, y_train, rand_idx = dataset.create_dataset(x_grid.reshape(-1, 1), t_grid.reshape(-1, 1), n_samples=1000, noise=0.1, random=True, return_idx=True)
+    
+    theta = dataset.library(x_grid.reshape(-1, 1), t_grid.reshape(-1, 1), poly_order=2, deriv_order=3)[rand_idx, :]
+    dt = dataset.time_deriv(x_grid.reshape(-1, 1), t_grid.reshape(-1, 1))[rand_idx, :]
+    
+    model = DeepModDynamic(**config)
+    optimizer = torch.optim.Adam(model.parameters(), betas=(0.99, 0.999), amsgrad=True)
+    train(model, X_train, y_train, optimizer, 20000, loss_func_args={'library':torch.tensor(theta) ,'time_deriv': torch.tensor(dt)}, log_dir = f'runs/deepmod_logprob_lstsq_run_{run_idx}')
+    torch.save(model.state_dict(), f'data/deepmod_logprob_lstsq_run_{run_idx}.pt')

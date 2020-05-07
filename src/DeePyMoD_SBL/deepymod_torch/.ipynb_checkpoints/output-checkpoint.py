@@ -5,8 +5,8 @@ from torch.utils.tensorboard import SummaryWriter
 
 class Tensorboard():
     '''Tensorboard class for logging during deepmod training. '''
-    def __init__(self, number_of_terms):
-        self.writer = SummaryWriter()
+    def __init__(self, number_of_terms, log_dir):
+        self.writer = SummaryWriter(log_dir)
         self.writer.add_custom_scalars(custom_board(number_of_terms))
 
     def write(self, iteration, loss, loss_mse, loss_reg, loss_l1, coeff_vector_list, coeff_vector_scaled_list, **kwargs):

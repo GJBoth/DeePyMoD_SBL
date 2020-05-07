@@ -15,10 +15,10 @@ from numpy import pi
 
 
 # Defining training function
-def train(model, data, target, optimizer, max_iterations):
+def train(model, data, target, optimizer, max_iterations, log_dir=None):
     start_time = time.time()
     number_of_terms = [coeff_vec.shape[0] for coeff_vec in model(data)[3]]
-    board = Tensorboard(number_of_terms)
+    board = Tensorboard(number_of_terms, log_dir)
     
     # Training
     print('| Iteration | Progress | Time remaining |     Cost |      MSE |      Reg |       LL |')
@@ -67,13 +67,12 @@ x_grid, t_grid = np.meshgrid(x, t, indexing='ij')
 
 # Making data
 dataset = Dataset(BurgersDelta, v=v, A=A)
-X_train, y_train = dataset.create_dataset(x_grid.reshape(-1, 1), t_grid.reshape(-1, 1), n_samples=1000, noise=0.1, random=True)
-
-# Running deepmod
 config = {'n_in': 2, 'hidden_dims': [30, 30, 30, 30, 30], 'n_out': 1, 'library_function':library_1D_in, 'library_args':{'poly_order':2, 'diff_order': 3}}
-model = DeepMod(**config)
+n_runs = 5
 
-optimizer = torch.optim.Adam(model.parameters(), betas=(0.99, 0.999), amsgrad=True)
-train(model, X_train, y_train, optimizer, 20000)
-
-torch.save(model.state_dict(), 'data/deepmod_logprob_scaled.pt')
+for run_idx in np.arange(n_runs):
+    X_train, y_train = dataset.create_dataset(x_grid.reshape(-1, 1), t_grid.reshape(-1, 1), n_samples=1000, noise=0.1, random=True)
+    model = DeepMod(**config)
+    optimizer = torch.optim.Adam(model.parameters(), betas=(0.99, 0.999), amsgrad=True)
+    train(model, X_train, y_train, optimizer, 20000, log_dir = f'runs/deepmod_logprob_scaled_run_{run_idx}')
+    torch.save(model.state_dict(), f'data/deepmod_logprob_scaled_run_{run_idx}.pt')
