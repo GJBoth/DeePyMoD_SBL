@@ -15,7 +15,7 @@ from numpy import pi
 
 
 # Defining training function
-def train(model, data, target, optimizer, max_iterations, log_dir=None):
+def train(model, data, target, optimizer, max_iterations, loss_func_args, log_dir=None):
     start_time = time.time()
     number_of_terms = [coeff_vec.shape[0] for coeff_vec in model(data)[3]]
     board = Tensorboard(number_of_terms, log_dir)
@@ -39,9 +39,17 @@ def train(model, data, target, optimizer, max_iterations, log_dir=None):
             # Write progress to command line
             progress(iteration, start_time, max_iterations, loss.item(), torch.sum(loss_mse).item(), torch.sum(loss_reg).item(), torch.sum(loss_ll).item())
             
+            lstsq_solution = torch.inverse(theta.T @ theta) @ theta.T @ time_deriv_list[0]
+            
+            # Calculate error for theta
+            theta_true = loss_func_args['library']
+            dt_true = loss_func_args['time_deriv']
+            mae_library = torch.mean(torch.abs(theta - theta_true), dim=0)
+            mae_dt = torch.mean(torch.abs(dt_true - time_deriv_list[0]), dim=0)
+            
             # Write to tensorboard
-            board.write(iteration, loss, loss_mse, loss_reg, loss_ll, coeff_vector_list, coeff_vector_scaled_list, log_likelihood=loss_ll, ll_fit=loss_ll_fit)
-
+            board.write(iteration, loss, loss_mse, loss_reg, loss_reg, coeff_vector_list, coeff_vector_scaled_list, lstsq_solution=lstsq_solution.squeeze(), mae_library=mae_library, mae_time_deriv=mae_dt, log_likelihood=loss_ll, ll_fit=loss_ll_fit)
+            
         # Optimizer step
         optimizer.zero_grad()
         loss.backward()
@@ -71,8 +79,12 @@ config = {'n_in': 2, 'hidden_dims': [30, 30, 30, 30, 30], 'n_out': 1, 'library_f
 n_runs = 5
 
 for run_idx in np.arange(n_runs):
-    X_train, y_train = dataset.create_dataset(x_grid.reshape(-1, 1), t_grid.reshape(-1, 1), n_samples=1000, noise=0.1, random=True)
+    X_train, y_train, rand_idx = dataset.create_dataset(x_grid.reshape(-1, 1), t_grid.reshape(-1, 1), n_samples=1000, noise=0.1, random=True, return_idx=True)
+    
+    theta = dataset.library(x_grid.reshape(-1, 1), t_grid.reshape(-1, 1), poly_order=2, deriv_order=3)[rand_idx, :]
+    dt = dataset.time_deriv(x_grid.reshape(-1, 1), t_grid.reshape(-1, 1))[rand_idx, :]
+    
     model = DeepMod(**config)
     optimizer = torch.optim.Adam(model.parameters(), betas=(0.99, 0.999), amsgrad=True)
-    train(model, X_train, y_train, optimizer, 20000, log_dir = f'runs/deepmod_logprob_scaled_run_{run_idx}')
+    train(model, X_train, y_train, optimizer, 20000, loss_func_args={'library':torch.tensor(theta) ,'time_deriv': torch.tensor(dt)}, log_dir = f'runs_new/deepmod_logprob_scaled_run_{run_idx}')
     torch.save(model.state_dict(), f'data/deepmod_logprob_scaled_run_{run_idx}.pt')

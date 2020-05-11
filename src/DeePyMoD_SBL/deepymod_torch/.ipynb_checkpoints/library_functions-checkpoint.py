@@ -65,7 +65,7 @@ def library_2Din_1Dout(input, poly_order, diff_order):
         '''
         prediction, data = input
         # Polynomial
-        
+
         u = torch.ones_like(prediction)
         for order in np.arange(1, poly_order+1):
             u = torch.cat((u, u[:, order-1:order] * prediction), dim=1)

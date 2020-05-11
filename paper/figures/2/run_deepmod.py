@@ -38,6 +38,7 @@ def train(model, data, target, optimizer, max_iterations, loss_func_args, log_di
             progress(iteration, start_time, max_iterations, loss.item(), torch.sum(loss_mse).item(), torch.sum(loss_reg).item(), torch.sum(loss_reg).item())
             
             lstsq_solution = torch.inverse(theta.T @ theta) @ theta.T @ time_deriv_list[0]
+            lstsq_solution_normed = lstsq_solution * torch.norm(theta, dim=0)[:, None] / torch.norm(time_deriv_list[0])
             
             # Calculate error for theta
             theta_true = loss_func_args['library']
@@ -46,7 +47,7 @@ def train(model, data, target, optimizer, max_iterations, loss_func_args, log_di
             mae_dt = torch.mean(torch.abs(dt_true - time_deriv_list[0]), dim=0)
             
             # Write to tensorboard
-            board.write(iteration, loss, loss_mse, loss_reg, loss_reg, coeff_vector_list, coeff_vector_scaled_list, lstsq_solution=lstsq_solution.squeeze(), mae_library=mae_library, mae_time_deriv=mae_dt)
+            board.write(iteration, loss, loss_mse, loss_reg, loss_reg, coeff_vector_list, coeff_vector_scaled_list, lstsq_solution=lstsq_solution.squeeze(), mae_library=mae_library, mae_time_deriv=mae_dt, lstsq_solution_normed=lstsq_solution_normed.squeeze())
 
         # Optimizer step
         optimizer.zero_grad()
@@ -84,5 +85,5 @@ for run_idx in np.arange(n_runs):
     
     model = DeepMod(**config)
     optimizer = torch.optim.Adam(model.parameters(), betas=(0.99, 0.999), amsgrad=True)
-    train(model, X_train, y_train, optimizer, 20000, loss_func_args={'library':torch.tensor(theta) ,'time_deriv': torch.tensor(dt)}, log_dir = f'runs/deepmod_run_{run_idx}')
+    train(model, X_train, y_train, optimizer, 20000, loss_func_args={'library':torch.tensor(theta) ,'time_deriv': torch.tensor(dt)}, log_dir = f'runs_new/deepmod_run_{run_idx}')
     torch.save(model.state_dict(), f'data/deepmod_run_{run_idx}.pt')
