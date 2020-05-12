@@ -35,3 +35,52 @@ def create_deriv_data(X, max_order):
         
     return (X, dX)
 
+
+class EarlyStop:
+    def __init__(self, patience=100, ini_epoch=1000, max_rounds=5, minimal_update=1e-2):
+        # internal state params
+        self.l1_min = None #minimum l1_norm so far
+        self.epochs_since_improvement = 0 
+        self.n_sparsity_applied = 0
+        
+        # convergence decision params
+        self.patience = patience # number of epochs to wait for improvement
+        self.initial_epoch = ini_epoch # after which iteration to track convergence
+        self.max_rounds = max_rounds # max number of times to apply sparsity
+        self.minimal_update = minimal_update # minimum magnitude of update to count as update
+    
+    def coeffs_converged(self, iteration, l1_norm):
+        '''Checks if coefficients are converged. If no decrease in L1 norm is seen for [patience] epochs, update.
+        Patience grows with number of times sparsity is applied.'''
+        # update internal state
+        self.update_state(l1_norm)
+        
+        # check convergence
+        if (self.epochs_since_improvement == self.patience * (1 + self.n_sparsity_applied)) and (iteration > self.initial_epoch): #increase patience every run
+            converged = True
+            self.epochs_since_improvement = 0
+            self.n_sparsity_applied += 1
+        else:
+            converged = False
+        
+        return converged
+
+    def sparsity_converged(self):
+        '''Checks if entire model is converged. Convergence reached when [max_rounds] is reached.'''
+        if self.n_sparsity_applied == self.max_rounds:
+            converged = True
+            print(self.n_sparsity_applied)
+        else:
+            converged = False
+        return converged
+    
+    def update_state(self, l1_norm):
+        '''Updates internal state used to decide convergence.'''
+        if self.l1_min is None: #initialization
+            self.l1_min = l1_norm
+            self.epochs_since_improvement += 1
+        elif self.l1_min - l1_norm > self.minimal_update: #update if better
+            self.l1_min = l1_norm
+            self.epochs_since_improvement = 0
+        else:
+            self.epochs_since_improvement += 1

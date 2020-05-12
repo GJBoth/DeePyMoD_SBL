@@ -1,9 +1,11 @@
 import torch
+import numpy as np
 import time
 
 from .output import Tensorboard, progress
 from .losses import reg_loss, mse_loss, l1_loss
 from .sparsity import scaling, threshold
+from .utilities import EarlyStop
 
 from numpy import pi
 
@@ -86,251 +88,56 @@ def train_deepmod(model, data, target, optimizer, max_iterations, loss_func_args
     train(model, data, target, optimizer, max_iterations, dict(loss_func_args, **{'l1': 0.0}))
     
 
-def train_dynamic(model, data, target, optimizer, max_iterations, loss_func_args={'sparsity_update_period': 200, 'start_sparsity_update': 5000}):
-    '''Trains the deepmod model with MSE, regression and l1 cost function. Updates model in-place.'''
+def train_dynamic(model, data, target, optimizer, max_iterations=10000, stopper_kwargs={}, log_dir=None):
     start_time = time.time()
     number_of_terms = [coeff_vec.shape[0] for coeff_vec in model(data)[3]]
-    board = Tensorboard(number_of_terms)
-
+    board = Tensorboard(number_of_terms, log_dir) # initializing custom tb board
+    
+    early_stopper = EarlyStop(**stopper_kwargs) # initializing early stopper
+    
     # Training
-    print('| Iteration | Progress | Time remaining |     Cost |      MSE |      Reg |       L1 |')
+    print('| Iteration | Progress | Time remaining |     Loss |      MSE |      Reg |    L1 norm |')
     for iteration in torch.arange(0, max_iterations + 1):
         # Calculating prediction and library and scaling
         prediction, time_deriv_list, sparse_theta_list, coeff_vector_list, theta = model(data)
         coeff_vector_scaled_list = scaling(coeff_vector_list, sparse_theta_list, time_deriv_list) 
         
+        # Calculating l1 norm
+        l1_norm = torch.stack([torch.sum(torch.abs(coeff_vector)) for coeff_vector in coeff_vector_scaled_list])
+        
         # Calculating loss
-        loss_reg = reg_loss(time_deriv_list, sparse_theta_list, coeff_vector_list)
         loss_mse = mse_loss(prediction, target)
-        loss = torch.sum(loss_reg) + torch.sum(loss_mse)
+        loss_reg = reg_loss(time_deriv_list, sparse_theta_list, coeff_vector_list)
+        loss = 2 * torch.log(2 * pi * loss_mse) + loss_reg / loss_mse
         
-        # Writing
-        if iteration % 100 == 0:
-            progress(iteration, start_time, max_iterations, loss.item(), torch.sum(loss_mse).item(), torch.sum(loss_reg).item(), 0.0)
-            # Before writing to tensorboard, we need to fill the missing values with 0
-            coeff_vectors_padded = [torch.zeros(mask.size()).masked_scatter_(mask, coeff_vector.squeeze()) for mask, coeff_vector in zip(model.constraints.sparsity_mask, coeff_vector_list)]
-            scaled_coeff_vectors_padded = [torch.zeros(mask.size()).masked_scatter_(mask, coeff_vector.squeeze()) for mask, coeff_vector in zip(model.constraints.sparsity_mask, coeff_vector_scaled_list)]
+        # Write progress to command line
+        if iteration % 25 == 0:
+            progress(iteration, start_time, max_iterations, loss.item(), torch.sum(loss_mse).item(), torch.sum(loss_reg).item(), torch.sum(l1_norm).item())
             
-            board.write(iteration, loss, loss_mse, loss_reg, loss_reg, coeff_vectors_padded, scaled_coeff_vectors_padded)
-
-        # Optimizer step
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
+        # Write to tensorboard
+        coeff_vectors_padded = [torch.zeros(mask.size()).masked_scatter_(mask, coeff_vector.squeeze()) for mask, coeff_vector in zip(model.constraints.sparsity_mask, coeff_vector_list)]
+        scaled_coeff_vectors_padded = [torch.zeros(mask.size()).masked_scatter_(mask, coeff_vector.squeeze()) for mask, coeff_vector in zip(model.constraints.sparsity_mask, coeff_vector_scaled_list)]
+            
+        board.write(iteration, loss, loss_mse, loss_reg, l1_norm, coeff_vectors_padded, scaled_coeff_vectors_padded)
         
-        # Updating sparsity pattern
-        if (iteration >= loss_func_args['start_sparsity_update']) and (iteration % loss_func_args['sparsity_update_period'] == 0):
+        # Updating sparsity
+        if early_stopper.coeffs_converged(iteration, l1_norm):
             with torch.no_grad():
                 model.constraints.sparsity_mask = model.calculate_sparsity_mask(theta, time_deriv_list)
-                
-    board.close()
-
-
-def train_logprob(model, data, target, optimizer, max_iterations, loss_func_args={'l1':1e-5}):
-    '''Trains the deepmod model with MSE, regression and l1 cost function. Updates model in-place.'''
-    start_time = time.time()
-    number_of_terms = [coeff_vec.shape[0] for coeff_vec in model(data)[3]]
-    board = Tensorboard(number_of_terms)
-    
-    sigma = loss_func_args['noise'] # noise parameter
-    # Training
-    print('| Iteration | Progress | Time remaining |     Cost |      MSE |      Reg |       L1 |')
-    for iteration in torch.arange(0, max_iterations + 1):
-        # Calculating prediction and library and scaling
-        prediction, time_deriv_list, sparse_theta_list, coeff_vector_list, theta = model(data)
-        coeff_vector_scaled_list = scaling(coeff_vector_list, sparse_theta_list, time_deriv_list) 
-        
-        # Calculating loss
-        loss_reg = reg_loss(time_deriv_list, sparse_theta_list, coeff_vector_list)
-        loss_ll = torch.mean((prediction - target)**2, dim=0) * 1 / (2 * sigma**2) + 1/2 * torch.log(2 * pi * sigma**2)
-        loss_mse = mse_loss(prediction, target)
-        loss_l1 = l1_loss(coeff_vector_scaled_list, loss_func_args['l1'])
-        loss = torch.sum(loss_reg) + torch.sum(loss_ll) + torch.sum(loss_l1)
-        
-        # Writing
-        if iteration % 100 == 0:
-            progress(iteration, start_time, max_iterations, loss.item(), torch.sum(loss_mse).item(), torch.sum(loss_reg).item(), torch.sum(loss_l1).item())
-            board.write(iteration, loss, loss_mse, loss_reg, loss_ll, coeff_vector_list, coeff_vector_scaled_list)
-
-        # Optimizer step
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-    board.close()
-    
-    
-def train_dynamic_logprob(model, data, target, optimizer, max_iterations, loss_func_args={'sparsity_update_period': 200, 'start_sparsity_update': 5000}):
-    '''Trains the deepmod model with MSE, regression and l1 cost function. Updates model in-place.'''
-    start_time = time.time()
-    number_of_terms = [coeff_vec.shape[0] for coeff_vec in model(data)[3]]
-    board = Tensorboard(number_of_terms)
-    
-    sigma = loss_func_args['noise'] # noise parameter
-    # Training
-    print('| Iteration | Progress | Time remaining |     Cost |      MSE |      Reg |       LL |')
-    for iteration in torch.arange(0, max_iterations + 1):
-        # Calculating prediction and library and scaling
-        prediction, time_deriv_list, sparse_theta_list, coeff_vector_list, theta = model(data)
-        coeff_vector_scaled_list = scaling(coeff_vector_list, sparse_theta_list, time_deriv_list) 
-        
-        # Calculating loss
-        loss_reg = reg_loss(time_deriv_list, sparse_theta_list, coeff_vector_list)
-        loss_ll = torch.mean((prediction - target)**2, dim=0) * 1 / (2 * sigma**2) + 1/2 * torch.log(2 * pi * sigma**2)
-        loss_mse = mse_loss(prediction, target)
-        loss = torch.sum(loss_reg) + torch.sum(loss_ll)
-        
-        # Writing
-        if iteration % 100 == 0:
-            progress(iteration, start_time, max_iterations, loss.item(), torch.sum(loss_mse).item(), torch.sum(loss_reg).item(), torch.sum(loss_ll).item())
-            # Before writing to tensorboard, we need to fill the missing values with 0
-            coeff_vectors_padded = [torch.zeros(mask.size()).masked_scatter_(mask, coeff_vector.squeeze()) for mask, coeff_vector in zip(model.constraints.sparsity_mask, coeff_vector_list)]
-            scaled_coeff_vectors_padded = [torch.zeros(mask.size()).masked_scatter_(mask, coeff_vector.squeeze()) for mask, coeff_vector in zip(model.constraints.sparsity_mask, coeff_vector_scaled_list)]
+                print('Updating mask.')
             
-            board.write(iteration, loss, loss_mse, loss_reg, loss_ll, coeff_vectors_padded, scaled_coeff_vectors_padded)
-
+        # Stop running if sparsity converged
+        if early_stopper.sparsity_converged():
+            break
+        
         # Optimizer step
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         
-        # Updating sparsity pattern
-        if (iteration >= loss_func_args['start_sparsity_update']) and (iteration % loss_func_args['sparsity_update_period'] == 0):
-            with torch.no_grad():
-                model.constraints.sparsity_mask = model.calculate_sparsity_mask(theta, time_deriv_list)
-                
-    board.close()
-    
-def train_dynamic_logprob_scaled(model, data, target, optimizer, max_iterations, loss_func_args={'sparsity_update_period': 200, 'start_sparsity_update': 5000}):
-    '''Trains the deepmod model with MSE, regression and l1 cost function. Updates model in-place.'''
-    start_time = time.time()
-    number_of_terms = [coeff_vec.shape[0] for coeff_vec in model(data)[3]]
-    board = Tensorboard(number_of_terms)
-    
-    #sigma = loss_func_args['noise'] # noise parameter
-    # Training
-    print('| Iteration | Progress | Time remaining |     Cost |      MSE |      Reg |       LL |')
-    for iteration in torch.arange(0, max_iterations + 1):
-        # Calculating prediction and library and scaling
-        prediction, time_deriv_list, sparse_theta_list, coeff_vector_list, theta = model(data)
-        coeff_vector_scaled_list = scaling(coeff_vector_list, sparse_theta_list, time_deriv_list) 
-        
-        # Calculating loss
-        loss_mse = mse_loss(prediction, target)
-        loss_reg = reg_loss(time_deriv_list, sparse_theta_list, coeff_vector_list)
-        #loss_ll_fit =  loss_reg * 1 / (2 * sigma**2) + 1/2 * torch.log(2 * pi * sigma**2)
-        #loss_ll = loss_mse * 1 / (2 * sigma**2) + 1/2 * torch.log(2 * pi * sigma**2)
-        loss_ll_fit = loss_reg / loss_mse + torch.log(2 * pi * loss_mse) #optimal sigma
-        loss_ll = 1 + torch.log(2 * pi * loss_mse) #optimal sigma
-            
-        loss = torch.sum(loss_ll_fit) + torch.sum(loss_ll)
-        
-        # Writing
-        if iteration % 100 == 0:
-            progress(iteration, start_time, max_iterations, loss.item(), torch.sum(loss_mse).item(), torch.sum(loss_reg).item(), torch.sum(loss_ll).item())
-            # Before writing to tensorboard, we need to fill the missing values with 0
-            coeff_vectors_padded = [torch.zeros(mask.size()).masked_scatter_(mask, coeff_vector.squeeze()) for mask, coeff_vector in zip(model.constraints.sparsity_mask, coeff_vector_list)]
-            scaled_coeff_vectors_padded = [torch.zeros(mask.size()).masked_scatter_(mask, coeff_vector.squeeze()) for mask, coeff_vector in zip(model.constraints.sparsity_mask, coeff_vector_scaled_list)]
-            
-            board.write(iteration, loss, loss_mse, loss_reg, loss_ll, coeff_vectors_padded, scaled_coeff_vectors_padded)
 
-        # Optimizer step
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        
-        # Updating sparsity pattern
-        if (iteration >= loss_func_args['start_sparsity_update']) and (iteration % loss_func_args['sparsity_update_period'] == 0):
-            with torch.no_grad():
-                model.constraints.sparsity_mask = model.calculate_sparsity_mask(theta, time_deriv_list)
-                
-    board.close()
-    
-    
-def train_logprob_scaled(model, data, target, optimizer, max_iterations, loss_func_args={'sparsity_update_period': 200, 'start_sparsity_update': 5000}):
-    '''Trains the deepmod model with MSE, regression and l1 cost function. Updates model in-place.'''
-    start_time = time.time()
-    number_of_terms = [coeff_vec.shape[0] for coeff_vec in model(data)[3]]
-    board = Tensorboard(number_of_terms)
-    
-    #sigma = loss_func_args['noise'] # noise parameter
-    # Training
-    print('| Iteration | Progress | Time remaining |     Cost |      MSE |      Reg |       LL |')
-    for iteration in torch.arange(0, max_iterations + 1):
-        # Calculating prediction and library and scaling
-        prediction, time_deriv_list, sparse_theta_list, coeff_vector_list, theta = model(data)
-        coeff_vector_scaled_list = scaling(coeff_vector_list, sparse_theta_list, time_deriv_list) 
-        
-        # Calculating loss
-        loss_mse = mse_loss(prediction, target)
-        loss_reg = reg_loss(time_deriv_list, sparse_theta_list, coeff_vector_list)
-        #loss_ll_fit =  loss_reg * 1 / (2 * sigma**2) + 1/2 * torch.log(2 * pi * sigma**2)
-        #loss_ll = loss_mse * 1 / (2 * sigma**2) + 1/2 * torch.log(2 * pi * sigma**2)
-        loss_ll_fit = loss_reg / loss_mse + torch.log(2 * pi * loss_mse) #optimal sigma
-        loss_ll = 1 + torch.log(2 * pi * loss_mse) #optimal sigma
-            
-        loss = torch.sum(loss_ll_fit) + torch.sum(loss_ll)
-        
-        # Writing
-        if iteration % 100 == 0:
-            progress(iteration, start_time, max_iterations, loss.item(), torch.sum(loss_mse).item(), torch.sum(loss_reg).item(), torch.sum(loss_ll).item())
-            # Before writing to tensorboard, we need to fill the missing values with 0
-            coeff_vectors_padded = [torch.zeros(mask.size()).masked_scatter_(mask, coeff_vector.squeeze()) for mask, coeff_vector in zip(model.constraints.sparsity_mask, coeff_vector_list)]
-            scaled_coeff_vectors_padded = [torch.zeros(mask.size()).masked_scatter_(mask, coeff_vector.squeeze()) for mask, coeff_vector in zip(model.constraints.sparsity_mask, coeff_vector_scaled_list)]
-            
-            board.write(iteration, loss, loss_mse, loss_reg, loss_ll, coeff_vectors_padded, scaled_coeff_vectors_padded)
-
-        # Optimizer step
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        
-        # Updating sparsity pattern
-        if (iteration >= loss_func_args['start_sparsity_update']) and (iteration % loss_func_args['sparsity_update_period'] == 0):
-            with torch.no_grad():
-                model.constraints.sparsity_mask = model.calculate_sparsity_mask(theta, time_deriv_list)
-                
     board.close()
 
     
-def train_dynamic_logprob_scaled_double(model, data, target, optimizer, max_iterations, loss_func_args={'sparsity_update_period': 200, 'start_sparsity_update': 5000}):
-    '''Trains the deepmod model with MSE, regression and l1 cost function. Updates model in-place.'''
-    start_time = time.time()
-    number_of_terms = [coeff_vec.shape[0] for coeff_vec in model(data)[3]]
-    board = Tensorboard(number_of_terms)
-    
-    #sigma = loss_func_args['noise'] # noise parameter
-    # Training
-    print('| Iteration | Progress | Time remaining |     Cost |      MSE |      Reg |       LL |')
-    for iteration in torch.arange(0, max_iterations + 1):
-        # Calculating prediction and library and scaling
-        prediction, time_deriv_list, sparse_theta_list, coeff_vector_list, theta = model(data)
-        coeff_vector_scaled_list = scaling(coeff_vector_list, sparse_theta_list, time_deriv_list) 
-        
-        # Calculating loss
-        loss_mse = mse_loss(prediction, target)
-        loss_reg = reg_loss(time_deriv_list, sparse_theta_list, coeff_vector_list)
-        loss_ll_fit = torch.log(2 * pi * loss_reg)  #optimal sigma
-        loss_ll = torch.log(2 * pi * loss_mse) #optimal sigma
-            
-        loss = torch.sum(loss_ll_fit) + torch.sum(loss_ll)
-        
-        # Writing
-        if iteration % 100 == 0:
-            progress(iteration, start_time, max_iterations, loss.item(), torch.sum(loss_mse).item(), torch.sum(loss_reg).item(), torch.sum(loss_ll).item())
-            # Before writing to tensorboard, we need to fill the missing values with 0
-            coeff_vectors_padded = [torch.zeros(mask.size()).masked_scatter_(mask, coeff_vector.squeeze()) for mask, coeff_vector in zip(model.constraints.sparsity_mask, coeff_vector_list)]
-            scaled_coeff_vectors_padded = [torch.zeros(mask.size()).masked_scatter_(mask, coeff_vector.squeeze()) for mask, coeff_vector in zip(model.constraints.sparsity_mask, coeff_vector_scaled_list)]
-            
-            board.write(iteration, loss, loss_mse, loss_reg, loss_ll, coeff_vectors_padded, scaled_coeff_vectors_padded)
 
-        # Optimizer step
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
         
-        # Updating sparsity pattern
-        if (iteration >= loss_func_args['start_sparsity_update']) and (iteration % loss_func_args['sparsity_update_period'] == 0):
-            with torch.no_grad():
-                model.constraints.sparsity_mask = model.calculate_sparsity_mask(theta, time_deriv_list)
-                
-    board.close()
