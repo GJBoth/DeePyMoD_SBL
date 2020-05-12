@@ -68,19 +68,19 @@ torch.backends.cudnn.benchmark = False
 
 
 estimator = LassoLarsIC(fit_intercept=False)
-dataset = Dataset_2D(AdvectionDiffusionGaussian2D, D=1.0, x0=[0.0, 0.0], sigma=0.5, v=[0.25, 0.25])
-x = np.linspace(-10, 10, 100)
-t = np.linspace(0.0, 1.0, 50)
+dataset = Dataset_2D(AdvectionDiffusionGaussian2D, D=1.0, x0=[0.0, 0.0], sigma=0.5, v=[1.0, 1.0])
+x = np.linspace(-4, 4, 100)
+t = np.linspace(0.0, 2.0, 50)
 x_grid, y_grid, t_grid = np.meshgrid(x, x, t, indexing='ij')
 
 X = np.concatenate([x_grid.reshape(-1, 1), y_grid.reshape(-1, 1)], axis=1)
 
-config = {'n_in': 3, 'hidden_dims': [30, 30, 30, 30, 30], 'n_out': 1, 'library_function':library_2Din_1Dout, 'library_args':{'poly_order':0, 'diff_order': 2}, 'sparsity_estimator': estimator}
+config = {'n_in': 3, 'hidden_dims': [30, 30, 30, 30, 30], 'n_out': 1, 'library_function':library_2Din_1Dout, 'library_args':{'poly_order':2, 'diff_order': 2}, 'sparsity_estimator': estimator}
 
 
 X_train, y_train, rand_idx = dataset.create_dataset(X,t_grid.reshape(-1,1), n_samples=5000, noise=0.01, random=True, return_idx=True)
-theta = dataset.library(X,t_grid.reshape(-1,1))[rand_idx, :]
+theta = dataset.library(X,t_grid.reshape(-1,1), poly_order=2)[rand_idx, :]
 dt = dataset.time_deriv(x_grid.reshape(-1, 1), t_grid.reshape(-1, 1))[rand_idx, :]
 model = DeepModDynamic(**config)
-optimizer = torch.optim.Adam(model.parameters(), betas=(0.99, 0.999), amsgrad=True)
-train(model, X_train, y_train, optimizer, 20000, loss_func_args={'library':torch.tensor(theta) ,'time_deriv': torch.tensor(dt)})
+optimizer = torch.optim.Adam(model.parameters(), betas=(0.99, 0.99), amsgrad=True)
+train(model, X_train, y_train, optimizer, 50000, loss_func_args={'library':torch.tensor(theta) ,'time_deriv': torch.tensor(dt)})
