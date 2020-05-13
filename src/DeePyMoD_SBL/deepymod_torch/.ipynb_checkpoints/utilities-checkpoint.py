@@ -69,7 +69,7 @@ class EarlyStop:
         '''Checks if entire model is converged. Convergence reached when [max_rounds] is reached.'''
         if self.n_sparsity_applied == self.max_rounds:
             converged = True
-            print(self.n_sparsity_applied)
+            print(f'Sparsity has been applied {self.n_sparsity_applied} times')
         else:
             converged = False
         return converged
