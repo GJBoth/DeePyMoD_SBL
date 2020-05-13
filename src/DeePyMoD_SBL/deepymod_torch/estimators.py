@@ -5,7 +5,8 @@ See scikitlearn.linear_models for applicable estimators.'''
 import numpy as np
 from sklearn.cluster import KMeans
 from pysindy.optimizers import STLSQ
-from sklearn.linear_models import LassoCV
+from sklearn.linear_model import LassoCV
+from sklearn.model_selection import train_test_split
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)  # To silence annoying pysindy warnings
@@ -14,7 +15,7 @@ warnings.filterwarnings("ignore", category=UserWarning)  # To silence annoying p
 class Threshold:
     '''Performs additional thresholding on coefficient result from estimator. Basically
     a thin wrapper around the given estimator. '''
-    def __init__(self, threshold=0.1, estimator=LassoCV):
+    def __init__(self, threshold=0.1, estimator=LassoCV(cv=5)):
         self.estimator = estimator
         self.threshold = threshold
 
@@ -30,8 +31,9 @@ class Threshold:
 
 
 class Clustering():
-    ''' Sparsity estimator based on k-means clusternig.'''
-    def __init__(self, estimator=LassoCV):
+    ''' Performs additional thresholding by clustering on coefficient result from estimator. Basically
+    a thin wrapper around the given estimator. Results are fitted to two groups: components to keep and components to throw.'''
+    def __init__(self, estimator=LassoCV(cv=5)):
         self.estimator = estimator
         self.kmeans = KMeans(n_clusters=2)
 
@@ -39,7 +41,7 @@ class Clustering():
         self.estimator.set_params(fit_intercept=False)
 
     def fit(self, X, y):
-        coeff = self.estimator.fit(X, y).coef_
+        coeff = self.estimator.fit(X, y).coef_[:, None] #sklearn returns 1D
         clusters = self.kmeans.fit_predict(np.abs(coeff)).astype(np.bool)
 
         # make sure terms to keep are 1 and to remove are 0
@@ -58,60 +60,45 @@ class PDEFIND():
         self.kwargs = kwargs
 
     def fit(self, X, y):
-        coeff = PDEFIND.TrainSTRidge(X, y[:, None], self.lam, self.dtol, **self.kwargs)
+        coeff = PDEFIND.TrainSTLSQ(X, y[:, None], self.lam, self.dtol, **self.kwargs)
         self.coef_ = coeff.squeeze()
         return self
-
+    
     @staticmethod
-    def TrainSTRidge(R, Ut, lam, d_tol, maxit = 25, STR_iters = 10, l0_penalty = None, normalize = 2, split = 0.8, print_best_tol = False):
-        """
-        This function trains a predictor using STRidge.
+    def TrainSTLSQ(X, y, alpha=1e-5, delta_threshold=1.0, max_iterations=100, test_size=0.2, random_state=0):
+        '''Train STLSQ. Assumes data already normalized'''
+        # Split data
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=random_state)
+        
+        # Set up the initial tolerance l0 penalty and estimates
+        l0 = 1e-3 * np.linalg.cond(X)
+        delta_t = delta_threshold # for interal use, can be updated
+      
+        # Initial estimate
+        optimizer = STLSQ(threshold=0, alpha=0.0, fit_intercept=False) # Now similar to LSTSQ
+        y_predict = optimizer.fit(X_train, y_train).predict(X_test)
+        min_loss = np.linalg.norm(y_predict - y_test, 2) + l0 * np.count_nonzero(optimizer.coef_)
+        
+        # Setting alpha and tolerance
+        best_threshold = delta_t
+        threshold = delta_t
 
-        It runs over different values of tolerance and trains predictors on a training set, then evaluates them
-        using a loss function on a holdout set.
-
-        Please note published article has typo.  Loss function used here for model selection evaluates fidelity using 2-norm,
-        not squared 2-norm.
-        """
-
-        # Split data into 80% training and 20% test, then search for the best tolderance.
-        np.random.seed(0) # for consistancy
-        n,_ = R.shape
-        train = np.random.choice(n, int(n*split), replace = False)
-        test = [i for i in np.arange(n) if i not in train]
-        TrainR = R[train,:]
-        TestR = R[test,:]
-        TrainY = Ut[train,:]
-        TestY = Ut[test,:]
-        D = TrainR.shape[1]
-
-        # Set up the initial tolerance and l0 penalty
-        d_tol = float(d_tol)
-        tol = d_tol
-        if l0_penalty == None: l0_penalty = 0.001*np.linalg.cond(R)
-
-        # Get the standard least squares estimator
-        w = np.zeros((D,1))
-        w_best = np.linalg.lstsq(TrainR, TrainY, rcond=None)[0]
-        err_best = np.linalg.norm(TestY - TestR.dot(w_best), 2) + l0_penalty*np.count_nonzero(w_best)
-        tol_best = 0
-
-        # Now increase tolerance until test performance decreases
-        for iter in range(maxit):
-
-            # Get a set of coefficients and error
-            opt = STLSQ(threshold=tol, alpha=lam, fit_intercept=False)
-            w = opt.fit(R, Ut).coef_.T
-            err = np.linalg.norm(TestY - TestR.dot(w), 2) + l0_penalty * np.count_nonzero(w)
-            # Has the accuracy improved?
-            if (err <= err_best) and (not np.all(w == 0)):
-                err_best = err
-                w_best = w
-                tol_best = tol
-                tol = tol + d_tol
-
-            else:
-                tol = max([0,tol - 2*d_tol])
-                d_tol  = 2*d_tol / (maxit - iter)
-                tol = tol + d_tol
-        return w_best
+        for iteration in np.arange(max_iterations):
+            optimizer.set_params(alpha=alpha, threshold=threshold)
+            y_predict = optimizer.fit(X_train, y_train).predict(X_test)
+            loss = np.linalg.norm(y_predict - y_test, 2) + l0 * np.count_nonzero(optimizer.coef_)
+    
+            if (loss <= min_loss) and not (np.all(optimizer.coef_ == 0)):
+                min_loss = loss
+                best_threshold = threshold
+                threshold += delta_threshold
+               
+            else: # if loss increases, we need to a) lower the current threshold and/or decrease step size
+                new_lower_threshold = np.max([0, threshold - 2 * delta_t])
+                delta_t = 2 * delta_t / (max_iterations - iteration)
+                threshold = new_lower_threshold + delta_t
+        
+        optimizer.set_params(alpha=alpha, threshold=best_threshold)
+        optimizer.fit(X_train, y_train)
+        
+        return optimizer.coef_

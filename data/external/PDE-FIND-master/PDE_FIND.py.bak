@@ -220,7 +220,7 @@ def build_Theta(data, derivatives, derivatives_description, P, data_description 
     powers = []            
     for p in range(1,P+1):
             size = d + p - 1
-            for indices in itertools.combinations(list(range(size)), d-1):
+            for indices in itertools.combinations(range(size), d-1):
                 starts = [0] + [index+1 for index in indices]
                 stops = indices + (size,)
                 powers.append(tuple(map(operator.sub, stops, starts)))
@@ -237,7 +237,7 @@ def build_Theta(data, derivatives, derivatives_description, P, data_description 
         
     # Add on derivatives times polynomials
     for D in range(derivatives.shape[1]):
-        for k in list(rhs_functions.keys()):
+        for k in rhs_functions.keys():
             func = rhs_functions[k][0]
             new_column = np.zeros((n,1), dtype=np.complex64)
             for i in range(n):
@@ -395,7 +395,7 @@ def print_pde(w, rhs_description, ut = 'u_t'):
                 pde = pde + ' + '
             pde = pde + "(%05f %+05fi)" % (w[i].real, w[i].imag) + rhs_description[i] + "\n   "
             first = False
-    print(pde)
+    print pde
 
 ##################################################################################
 ##################################################################################
@@ -457,7 +457,7 @@ def TrainSTRidge_bad(R, Ut, lam, d_tol, maxit = 25, STR_iters = 10, l0_penalty =
             d_tol  = 2*d_tol / (maxit - iter)
             tol = tol + d_tol
 
-    if print_best_tol: print("Optimal tolerance:", tol_best)
+    if print_best_tol: print "Optimal tolerance:", tol_best
 
     return w_best
 
@@ -513,7 +513,7 @@ def TrainSTRidge_correct(R, Ut, lam, d_tol, maxit = 25, STR_iters = 10, l0_penal
             d_tol  = 2*d_tol / (maxit - iter)
             tol = tol + d_tol
 
-    if print_best_tol: print("Optimal tolerance:", tol_best)
+    if print_best_tol: print "Optimal tolerance:", tol_best
 
     return w_best
 
