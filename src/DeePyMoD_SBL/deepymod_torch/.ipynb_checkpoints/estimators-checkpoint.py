@@ -15,7 +15,7 @@ warnings.filterwarnings("ignore", category=UserWarning)  # To silence annoying p
 class Threshold:
     '''Performs additional thresholding on coefficient result from estimator. Basically
     a thin wrapper around the given estimator. '''
-    def __init__(self, threshold=0.1, estimator=LassoCV(cv=5)):
+    def __init__(self, threshold=0.1, estimator=LassoCV(cv=5, fit_intercept=False)):
         self.estimator = estimator
         self.threshold = threshold
 
@@ -33,7 +33,7 @@ class Threshold:
 class Clustering():
     ''' Performs additional thresholding by clustering on coefficient result from estimator. Basically
     a thin wrapper around the given estimator. Results are fitted to two groups: components to keep and components to throw.'''
-    def __init__(self, estimator=LassoCV(cv=5)):
+    def __init__(self, estimator=LassoCV(cv=5, fit_intercept=False)):
         self.estimator = estimator
         self.kmeans = KMeans(n_clusters=2)
 

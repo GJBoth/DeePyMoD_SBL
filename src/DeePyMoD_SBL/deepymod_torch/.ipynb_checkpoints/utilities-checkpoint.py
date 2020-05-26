@@ -37,16 +37,20 @@ def create_deriv_data(X, max_order):
 
 
 class EarlyStop:
-    def __init__(self, patience=100, ini_epoch=1000, max_rounds=5, minimal_update=1e-2):
+    def __init__(self, patience=100, ini_epoch=1000, minimal_update=1e-2):
         # internal state params
         self.l1_min = None #minimum l1_norm so far
+        
+        self.masks_similar = False
+        self.l1_previous_mask = 0
+        
         self.epochs_since_improvement = 0 
         self.n_sparsity_applied = 0
+        
         
         # convergence decision params
         self.patience = patience # number of epochs to wait for improvement
         self.initial_epoch = ini_epoch # after which iteration to track convergence
-        self.max_rounds = max_rounds # max number of times to apply sparsity
         self.minimal_update = minimal_update # minimum magnitude of update to count as update
     
     def coeffs_converged(self, iteration, l1_norm):
@@ -64,16 +68,16 @@ class EarlyStop:
             converged = False
         
         return converged
-
-    def sparsity_converged(self):
-        '''Checks if entire model is converged. Convergence reached when [max_rounds] is reached.'''
-        if self.n_sparsity_applied == self.max_rounds:
+    
+    def sparsity_converged(self, l1_norm, tol=torch.tensor(0.05)):
+        # converged if sparsity mask the same as last time and l1 norm as well.
+        if (self.masks_similar == True) and ((torch.abs(l1_norm - self.l1_previous_mask) < tol).item()):
             converged = True
-            print(f'Sparsity has been applied {self.n_sparsity_applied} times')
         else:
             converged = False
+            
         return converged
-    
+        
     def update_state(self, l1_norm):
         '''Updates internal state used to decide convergence.'''
         if self.l1_min is None: #initialization

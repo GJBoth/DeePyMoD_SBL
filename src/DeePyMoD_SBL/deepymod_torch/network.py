@@ -50,5 +50,14 @@ class FittingDynamic(nn.Module):
         return sparse_theta
     
     def fit_coefficient(self, thetas, time_derivs):
-        opt_coeff = [torch.inverse(theta.T @ theta) @ (theta.T @ dt) for theta, dt in zip(thetas, time_derivs)] # normal equation for least squares
+        #opt_coeff = [torch.inverse(theta.T @ theta) @ (theta.T @ dt) for theta, dt in zip(thetas, time_derivs)] # normal equation for least squares
+        opt_coeff = []
+        for theta, dt in zip(thetas, time_derivs):
+            norm = torch.norm(theta, dim=0, keepdim=True)
+            Q, R = torch.qr(theta / norm)
+            opt_coeff.append(torch.inverse(R) @ Q.T @ dt / norm.T)
+            
+            #U, S, V = torch.svd(R)
+            #print(torch.max(S) / torch.min(S))
+        
         return opt_coeff

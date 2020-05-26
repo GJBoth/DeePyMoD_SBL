@@ -94,7 +94,7 @@ def train_dynamic(model, data, target, optimizer, max_iterations=10000, stopper_
     board = Tensorboard(number_of_terms, log_dir) # initializing custom tb board
     
     early_stopper = EarlyStop(**stopper_kwargs) # initializing early stopper
-    
+    converged = False
     # Training
     print('| Iteration | Progress | Time remaining |     Loss |      MSE |      Reg |    L1 norm |')
     for iteration in torch.arange(0, max_iterations + 1):
@@ -108,26 +108,33 @@ def train_dynamic(model, data, target, optimizer, max_iterations=10000, stopper_
         # Calculating loss
         loss_mse = mse_loss(prediction, target)
         loss_reg = reg_loss(time_deriv_list, sparse_theta_list, coeff_vector_list)
-        loss = 2 * torch.log(2 * pi * loss_mse) + loss_reg / loss_mse
+        loss = torch.sum(2 * torch.log(2 * pi * loss_mse) + loss_reg / loss_mse)
         
         # Write progress to command line
         if iteration % 25 == 0:
             progress(iteration, start_time, max_iterations, loss.item(), torch.sum(loss_mse).item(), torch.sum(loss_reg).item(), torch.sum(l1_norm).item())
             
-        # Write to tensorboard
+        # Write to tensorboard (we pad the sparse vectors with zeros so they get written correctly)
         coeff_vectors_padded = [torch.zeros(mask.size()).masked_scatter_(mask, coeff_vector.squeeze()) for mask, coeff_vector in zip(model.constraints.sparsity_mask, coeff_vector_list)]
         scaled_coeff_vectors_padded = [torch.zeros(mask.size()).masked_scatter_(mask, coeff_vector.squeeze()) for mask, coeff_vector in zip(model.constraints.sparsity_mask, coeff_vector_scaled_list)]
-            
         board.write(iteration, loss, loss_mse, loss_reg, l1_norm, coeff_vectors_padded, scaled_coeff_vectors_padded)
         
-        # Updating sparsity
-        if early_stopper.coeffs_converged(iteration, l1_norm):
+        # Updating sparsity and or convergence
+        if early_stopper.coeffs_converged(iteration, torch.sum(l1_norm)): # sum when multiple outputs
             with torch.no_grad():
-                model.constraints.sparsity_mask = model.calculate_sparsity_mask(theta, time_deriv_list)
+                new_masks = model.calculate_sparsity_mask(theta, time_deriv_list)
+                masks_similar = np.all([torch.equal(new_mask, old_mask) for new_mask, old_mask in zip(new_masks, model.constraints.sparsity_mask)])
+                early_stopper.masks_similar = masks_similar # if masks are similar, sparsity has converged
                 print('Updating mask.')
-            
+                if early_stopper.sparsity_converged(torch.sum(l1_norm)):
+                    converged = True
+                early_stopper.l1_previous_mask = torch.sum(l1_norm)
+                model.constraints.sparsity_mask = new_masks
+                print(new_masks)
+                
         # Stop running if sparsity converged
-        if early_stopper.sparsity_converged():
+        if converged:
+            print('Sparsity converged. Stopping training.')
             break
         
         # Optimizer step
