@@ -4,7 +4,7 @@ import pandas as pd
 from os import listdir
 
 def collect_runs(ID):
-    files = [file for file in listdir('runs_correct/') if file[:len(ID)] == ID]#getting and sorting files
+    files = [file for file in listdir(f'{ID}/runs/') if file[:len(ID)] == ID]#getting and sorting files
     files.sort()
 
     df_plot = pd.DataFrame() #df used to store results in
@@ -14,7 +14,7 @@ def collect_runs(ID):
     ini_coeffs = []
     ini_idx = []
     for file in files:
-        df = load_tensorboard('runs_correct/' + file + '/')
+        df = load_tensorboard(f'{ID}/runs/{file}/')
         scaled_coeff_keys = [key for key in df.keys() if key[:6]=='scaled']
         coeffs.append(df.tail(1))
         noise.append(float(file.split('_')[1]))
@@ -40,5 +40,5 @@ df.to_pickle('data/threshold_collected.pd')
 df = collect_runs('cluster')
 df.to_pickle('data/cluster_collected.pd')
 
-#df = collect_runs('pdefind')
-#df.to_pickle('data/pdefind_collected.pd')
+df = collect_runs('pdefind')
+df.to_pickle('data/pdefind_collected.pd')

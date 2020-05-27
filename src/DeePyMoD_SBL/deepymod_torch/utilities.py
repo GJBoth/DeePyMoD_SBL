@@ -1,4 +1,5 @@
 from itertools import product, combinations
+import numpy as np
 import sys
 import torch
 
@@ -36,8 +37,63 @@ def create_deriv_data(X, max_order):
     return (X, dX)
 
 
+class EarlyStopping:
+    """Early stops the training if validation loss doesn't improve after a given patience."""
+    def __init__(self, patience=50, verbose=False, delta=0, initial_epoch=1000):
+        """
+        Args:
+            patience (int): How long to wait after last time validation loss improved.
+                            Default: 7
+            delta (float): Minimum change in the monitored quantity to qualify as an improvement.
+                            Default: 0
+        """
+        self.patience = patience
+        self.delta = delta
+        self.initial_epoch = initial_epoch
+        
+        self.counter = 0
+        self.best_score = None
+        self.early_stop = False
+        self.val_loss_min = np.Inf
+    
+    def __call__(self, epoch, val_loss, model, optimizer):
+        if epoch >= self.initial_epoch:
+            self.update_score(val_loss, model, optimizer)
+        else:
+            pass
+            
+    def update_score(self, val_loss, model, optimizer):
+        score = -val_loss
+
+        if self.best_score is None:
+            self.best_score = score
+            self.save_checkpoint(val_loss, model, optimizer)
+        elif score < self.best_score + self.delta:
+            self.counter += 1
+            if self.counter >= self.patience:
+                self.early_stop = True
+        else:
+            self.best_score = score
+            self.save_checkpoint(val_loss, model, optimizer)
+            self.counter = 0
+
+    def save_checkpoint(self, val_loss, model, optimizer):
+        '''Saves model when validation loss decrease.'''
+        torch.save(model.state_dict(), 'model_checkpoint.pt')
+        torch.save(optimizer.state_dict(), 'optimizer_checkpoint.pt')
+        self.val_loss_min = val_loss
+        
+    def reset(self):
+        self.counter = 0
+        self.best_score = None
+        self.early_stop = False
+        self.val_loss_min = np.Inf
+        
+        
+
+
 class EarlyStop:
-    def __init__(self, patience=100, ini_epoch=1000, minimal_update=1e-2):
+    def __init__(self, patience=50, ini_epoch=1000, minimal_update=0.0):
         # internal state params
         self.l1_min = None #minimum l1_norm so far
         
