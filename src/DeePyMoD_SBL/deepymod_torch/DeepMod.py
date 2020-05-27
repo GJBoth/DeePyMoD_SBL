@@ -79,7 +79,7 @@ class DeepModDynamic(nn.Module):
         return fit_layer
     
     def calculate_sparsity_mask(self, theta, time_derivs):
-        ''' Determines group sparsity mask from given scikit learn estimator. Theta and time derivs are normalized in here as well. Make sure to intercept = False in the estimator since we have a constant term in the library.'''
+        ''' Determines group sparsity mask from given estimator. Theta and time derivs are normalized in here as well. Make sure to intercept = False in the estimator since we have a constant term in the library.'''
         # Normalizing inputs
         time_derivs_normed = [(time_deriv / torch.norm(time_deriv, keepdim=True)).detach().cpu().numpy() for time_deriv in time_derivs] 
         theta_normed = (theta / torch.norm(theta, dim=0, keepdim=True)).detach().cpu().numpy()
