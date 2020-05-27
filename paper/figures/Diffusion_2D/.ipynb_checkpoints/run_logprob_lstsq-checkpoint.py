@@ -75,11 +75,11 @@ x_grid, y_grid, t_grid = np.meshgrid(x, x, t, indexing='ij')
 
 X = np.concatenate([x_grid.reshape(-1, 1), y_grid.reshape(-1, 1)], axis=1)
 
-config = {'n_in': 3, 'hidden_dims': [30, 30, 30, 30, 30], 'n_out': 1, 'library_function':library_2Din_1Dout, 'library_args':{'poly_order':2, 'diff_order': 2}, 'sparsity_estimator': estimator}
+config = {'n_in': 3, 'hidden_dims': [30, 30, 30, 30, 30], 'n_out': 1, 'library_function':library_2Din_1Dout, 'library_args':{'poly_order':1, 'diff_order': 2}, 'sparsity_estimator': estimator}
 
 
 X_train, y_train, rand_idx = dataset.create_dataset(X,t_grid.reshape(-1,1), n_samples=5000, noise=0.01, random=True, return_idx=True)
-theta = dataset.library(X,t_grid.reshape(-1,1), poly_order=2)[rand_idx, :]
+theta = dataset.library(X,t_grid.reshape(-1,1), poly_order=1)[rand_idx, :]
 dt = dataset.time_deriv(x_grid.reshape(-1, 1), t_grid.reshape(-1, 1))[rand_idx, :]
 model = DeepModDynamic(**config)
 optimizer = torch.optim.Adam(model.parameters(), betas=(0.99, 0.99), amsgrad=True)
