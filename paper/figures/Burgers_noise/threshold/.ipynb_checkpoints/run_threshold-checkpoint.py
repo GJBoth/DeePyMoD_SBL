@@ -27,7 +27,7 @@ t = np.linspace(0.5, 5.0, 50)
 x_grid, t_grid = np.meshgrid(x, t, indexing='ij')
 dataset = Dataset(BurgersDelta, v=v, A=A)
 
-noise_range = np.arange(0.0, 1.01, 0.20)#np.arange(0.0, 0.51, 0.05)
+noise_range = np.arange(0.0, 1.61, 0.20)#np.arange(0.0, 0.51, 0.05)
 n_runs = 5
 
 for noise_level in noise_range:
@@ -37,4 +37,4 @@ for noise_level in noise_range:
         config = {'n_in': 2, 'hidden_dims': [30, 30, 30, 30, 30], 'n_out': 1, 'library_function':library_1D_in, 'library_args':{'poly_order':2, 'diff_order': 3}, 'sparsity_estimator': estimator}
         model = DeepModDynamic(**config)
         optimizer = torch.optim.Adam(model.parameters(), betas=(0.99, 0.999), amsgrad=True)
-        train_dynamic(model, X_train, y_train, optimizer, 10000, log_dir=f'runs/threshold_{noise_level:.2f}_run_{run}/')
+        train_dynamic(model, X_train, y_train, optimizer, 15000, log_dir=f'runs_final/threshold_{noise_level:.2f}_run_{run}/')

@@ -39,7 +39,7 @@ def create_deriv_data(X, max_order):
 
 class EarlyStopping:
     """Early stops the training if validation loss doesn't improve after a given patience."""
-    def __init__(self, patience=50, verbose=False, delta=0, initial_epoch=1000):
+    def __init__(self, patience=50, verbose=False, delta=0, initial_epoch=1000, sparsity_update_period=500):
         """
         Args:
             patience (int): How long to wait after last time validation loss improved.
@@ -55,14 +55,19 @@ class EarlyStopping:
         self.best_score = None
         self.early_stop = False
         self.val_loss_min = np.Inf
+        
+        self.first_sparsity_epoch = 1e8
+        self.sparsity_update_period = sparsity_update_period
     
     def __call__(self, epoch, val_loss, model, optimizer):
-        if epoch >= self.initial_epoch:
-            self.update_score(val_loss, model, optimizer)
-        else:
+        if (epoch >= self.initial_epoch) and (self.first_sparsity_epoch == 1e8): # first part
+            self.update_score(val_loss, model, optimizer, epoch)
+        elif (epoch > self.first_sparsity_epoch) and ((epoch - self.first_sparsity_epoch) % self.sparsity_update_period == 0): # sparsity update
+            self.early_stop = True
+        else: # before initial epoch
             pass
             
-    def update_score(self, val_loss, model, optimizer):
+    def update_score(self, val_loss, model, optimizer, epoch):
         score = -val_loss
 
         if self.best_score is None:
@@ -72,6 +77,7 @@ class EarlyStopping:
             self.counter += 1
             if self.counter >= self.patience:
                 self.early_stop = True
+                self.first_sparsity_epoch = epoch
         else:
             self.best_score = score
             self.save_checkpoint(val_loss, model, optimizer)
